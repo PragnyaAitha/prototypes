@@ -38,7 +38,7 @@ func main() {
 			// if err != nil {
 			// 	log.Println(err)
 			// }
-			result, err := db.Exec("UPDATE seats SET user_id = ? WHERE user_id != 0 ORDER BY id ASC LIMIT 1", i)
+			result, err := db.Exec("UPDATE seats SET user_id = ? WHERE user_id = 0 ORDER BY id ASC LIMIT 1", i)
 			// fmt.Printf("Goroutine %d\n", index)
 			if err != nil {
 				log.Println(err)
