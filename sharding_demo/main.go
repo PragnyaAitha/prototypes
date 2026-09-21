@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -48,9 +49,9 @@ func main() {
 		fmt.Printf("- database=%s tables=%v\n", shard.Database, shard.Tables)
 	}
 
-	rootDSN := os.Getenv("MYSQL_DSN")
+	rootDSN := os.Getenv("MYSQL_ROOT_DSN")
 	if rootDSN == "" {
-		fmt.Println("No MYSQL_DSN is set. Showing shard plan only. Set MYSQL_DSN to create the databases and tables.")
+		fmt.Println("No MYSQL_ROOT_DSN is set. Showing shard plan only. Set MYSQL_ROOT_DSN to create the databases and tables.")
 		return
 	}
 
@@ -59,7 +60,20 @@ func main() {
 		createSchema(rootDSN, shard)
 	}
 
-	fmt.Println("Successfully created 3 sharded partitions:", len(plan.Partitions))
+	appDSN := os.Getenv("MYSQL_DSN")
+	if appDSN == "" {
+		appDSN = rootDSN
+	}
+	router, err := NewShardRouter(context.Background(), appDSN)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer router.Close()
+
+	fmt.Println("Successfully initialized 3 horizontal shards")
+	for userID := int64(1); userID <= 6; userID++ {
+		fmt.Printf("user_id=%d -> %s\n", userID, router.ShardForKey(userID).Database)
+	}
 }
 
 func createDatabaseIfNeeded(dsn, dbName string) {
@@ -70,6 +84,10 @@ func createDatabaseIfNeeded(dsn, dbName string) {
 	defer conn.Close()
 
 	_, err = conn.Exec("CREATE DATABASE IF NOT EXISTS " + dbName)
+	if err != nil {
+		log.Fatal(err)
+	}
+	_, err = conn.Exec("GRANT ALL PRIVILEGES ON " + dbName + ".* TO 'app'@'%'")
 	if err != nil {
 		log.Fatal(err)
 	}
